@@ -1,0 +1,8 @@
+- The pieces should rotate in horizontally while falling in an 3d manner, or at least in a fake 3d.
+- When an animal eats, it must pass over all the food tiles its eating, that animation was in the original game and it was very cool.
+- While eating, an animation of chewing would be nice and a chewing sound too.
+- When the animal finish eating, it should move to the heart points score and when arrives there disappear adding the points to the score.
+- The "next" tiles now moves from right to left, but in the original game was from left to right. This movement should be an animation not just an update to the next queue. I mean the next to pieces start to fall, they left an empty space in the next queue, and the rest of the pieces move to fill the gap, that animation.
+- In the screenshot1.png file,  you can see the animation of the animal going to the heart score to add the points leaving a star trail behind, and another thing: you can notice over every player game place a bar t with a heart moving from left to right. That bar indicates the size of the food the other player is sending, the bigger it is, the more to the left that heart moves. In the screenshot you can see that something i arrivint to the left-player place. We need to implmeent also that.
+- When one player sends food to the other, a sound must play. Depending of the quantity you're sending, it has different sounds
+- There also another important thing that has to do with the movement of the pieces, when you push "down" the piece accelerates progressively the speed of falling based on how long you have the down key pressed. You can't make the pieces fall to the bottom in one single shot, you can only accelerate it.
