@@ -32,8 +32,49 @@ public class VersusTests
         }
 
         Assert.Equal(VersusPhase.MatchOver, session.Phase);
-        Assert.Equal(Rules.RoundsToWinMatch, session.CpuWins);
+        Assert.Equal(Rules.RoundsToWinMatch, session.OpponentWins);
         Assert.False(session.PlayerWonMatch);
+    }
+
+    [Fact]
+    public void TwoPlayers_HasNoCpu_AndEachInputDrivesItsOwnBoard()
+    {
+        var session = new VersusSession(Rules, seed: 5, difficulty: null);
+        while (session.Phase != VersusPhase.Playing)
+        {
+            session.Update(Tick, InputState.None);
+        }
+
+        session.Update(Tick, InputState.None);
+        int playerX = session.Player.Current!.Value.Pivot.X;
+        int opponentX = session.Opponent.Current!.Value.Pivot.X;
+
+        var moveLeft = new InputState(ActionSet.Empty, ActionSet.Empty.With(GameAction.MoveLeft), ActionSet.Empty);
+        session.Update(Tick, InputState.None, moveLeft);
+
+        Assert.True(session.IsTwoPlayer);
+        Assert.Null(session.CpuBrain);
+        Assert.Equal(playerX, session.Player.Current!.Value.Pivot.X);
+        Assert.Equal(opponentX - 1, session.Opponent.Current!.Value.Pivot.X);
+    }
+
+    [Fact]
+    public void AgainstCpu_SecondInputIsIgnored()
+    {
+        var session = new VersusSession(Rules, seed: 5, CpuDifficulty.Easy);
+        while (session.Phase != VersusPhase.Playing)
+        {
+            session.Update(Tick, InputState.None);
+        }
+
+        session.Update(Tick, InputState.None);
+        int opponentX = session.Opponent.Current!.Value.Pivot.X;
+        var moveLeft = new InputState(ActionSet.Empty, ActionSet.Empty.With(GameAction.MoveLeft), ActionSet.Empty);
+        session.Update(Tick, InputState.None, moveLeft);
+
+        // The easy CPU is still in its reaction delay, so the piece has not moved.
+        Assert.NotNull(session.CpuBrain);
+        Assert.Equal(opponentX, session.Opponent.Current!.Value.Pivot.X);
     }
 
     [Fact]

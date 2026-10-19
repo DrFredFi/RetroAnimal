@@ -1,7 +1,7 @@
 # Retro Animal Puzzle
 
 A Windows desktop falling-block puzzle game in the spirit of mid-90s animal-and-food arcade puzzlers:
-cartoon animals, food that gets eaten, chain reactions, a versus mode against the computer, and the
+cartoon animals, food that gets eaten, chain reactions, versus against the computer or a second player, and the
 classic two-field arena layout. Built with C# / .NET 10, Windows Forms as host and SkiaSharp for all rendering.
 
 All graphics are original vector drawings made in code and all sounds and music are synthesized at start-up.
@@ -60,6 +60,9 @@ Pairs of blocks fall into your 6 × 11 field. Each block is an **animal**, a **f
   each field shows food on its way: the further it travels from the centre, the more is coming. Food sent to you
   is first cancelled by what you eat. Top out the CPU to win a round (stars beside the hearts); two rounds win the stage. Each stage brings a faster, smarter opponent and the
   falling speed also rises during a round. The CPU level (Easy / Normal / Hard) is set in Options.
+- **2 Players**: the same versus rules for two people sharing one keyboard. The left player uses W A S D (Q rotates
+  the other way), the right player the arrow keys; each player's keys are shown under the fields during "READY?".
+  The match ends after two won rounds with a rematch option; two-player scores are not ranked in the high scores.
 
 ### Controls (defaults)
 
@@ -77,8 +80,24 @@ Pairs of blocks fall into your 6 × 11 field. Each block is an **animal**, a **f
 | F11 or Alt+Enter | Toggle fullscreen |
 | F3 | FPS / debug overlay |
 
-Gameplay keys (move, drop faster, rotate, pause) can be reassigned in **Options → Controls**. Assigning a key that is
-already in use swaps the two actions. Menu keys (arrows, Enter, Esc) are fixed. The game auto-pauses when
+Left player in **2 Players**: A / D move, W rotates clockwise, Q counter-clockwise, S (hold) drops faster.
+The right player uses the main keys above. Pause, Esc and the menu keys are shared.
+
+### Controller (Xbox-compatible, XInput)
+
+Any Xbox-style controller works, wired or wireless, up to four. By default the gameplay uses the digital controls:
+D-pad left / right move, D-pad down (hold) drops faster, A (or D-pad up) rotates clockwise, B counter-clockwise,
+Menu (Start) pauses. In menus the D-pad or left stick navigates, A or Menu confirms, B goes back; View always
+pauses and goes back. The gameplay buttons, sticks and triggers included, can be remapped in
+**Options → Controller**, which also turns controllers on or off. One mapping is shared by every controller.
+
+In **2 Players** the first connected controller plays the left field and the second the right (the first one
+can be moved to the right in Options → Controller); the keyboard keeps working for both players, so one player can
+use a controller and the other the keyboard. In the other modes every controller drives the single player.
+
+Gameplay keys (move, drop faster, rotate, pause) can be reassigned in **Options → Keyboard**, in two groups: the
+main keys (one player, and the right player in 2 Players) and the left player's keys. Assigning a key that is
+already in use, in either group, swaps the two actions. Menu keys (arrows, Enter, Esc) are fixed. The game auto-pauses when
 the window loses focus.
 
 ## Saved data
@@ -112,17 +131,20 @@ src/RetroAnimalPuzzle.Core/        net10.0, no UI dependencies (all game rules, 
                GravitySystem, MatchResolver, ScoreSystem, LevelSystem, GameOverDetector,
                PlayerBoard (per-board state machine), SinglePlayerSession, VersusSession, CPU (CpuPlanner,
                CpuController, CpuSkill), GameEvent
-  Input/       GameAction, ActionSet / InputState (allocation-free per-tick input snapshot)
+  Input/       GameAction, ActionSet / InputState (allocation-free per-tick input snapshot), GamepadButtons,
+               GamepadBindings (controller mapping, pad roles)
   Persistence/ JsonStore, SaveData / SaveService, SettingsData / SettingsService
 
 src/RetroAnimalPuzzle/             net10.0-windows10.0.19041.0, WinForms + SkiaSharp + NAudio
   Application/ GameApplication (composition root), GameLoop (fixed 60 Hz step), GameContext (shared services)
   Host/        GameForm, GameSurface (SKControl), NativeMethods (idle loop, timer resolution)
-  Input/       InputManager (key events → InputState), KeyboardBindings (defaults + rebinding)
+  Input/       InputManager (keys + controllers → InputState), KeyboardBindings (defaults + rebinding),
+               XInputGamepads (controller polling)
   Rendering/   GameRenderer (letterboxed 800×600), ArenaRenderer, PlayfieldRenderer, BlockArt, MascotRenderer,
                UiRenderer, AnimationSystem, ParticleSystem, EmbossedPattern, Fonts, Palette, ArenaLayout
   Audio/       IAudioService, AudioService (NAudio mixer), NullAudioService, Synth (effects + music)
-  UI/          ScreenManager (stack + fades), Title, MainMenu, Endless, Versus, Help, Options, Controls, HighScores
+  UI/          ScreenManager (stack + fades), Title, MainMenu, Endless, Versus, Help, Options, Controls
+               (keyboard), GamepadControls, HighScores
 
 tests/RetroAnimalPuzzle.Tests/     xUnit tests for Core: grid, movement, matching, coins, gravity, chains,
                                    scoring, levels, board state machine, game over, generator, versus/CPU,
@@ -154,7 +176,7 @@ The executable has four hidden command-line switches that never open a window or
 
 | Switch | Output |
 |---|---|
-| `--snapshot <dir>` | PNG of every screen, including a simulated endless game and versus match |
+| `--snapshot <dir>` | PNG of every screen, including a simulated endless game, a versus match and a two-player match |
 | `--gallery <file.png>` | All block drawings in both poses |
 | `--bench <file.txt>` | Draw cost per frame for each screen, plus CPU-opponent strength per difficulty |
 | `--icon <file.ico>` | Regenerates the application icon (the bamboo tile, 16 to 256 px); the project uses `src/RetroAnimalPuzzle/Assets/app.ico` |
@@ -165,7 +187,9 @@ The executable has four hidden command-line switches that never open a window or
   process use roughly a quarter of one CPU core at 1024×768. There is no vsync, so occasional tearing is possible.
 - The CPU opponent picks the best immediate placement (including chains it can see happen right away), but does
   not deliberately build multi-step chains.
-- Versus is human vs CPU only; there is no two-player mode on one keyboard. There is no gamepad or mouse support.
+- Only XInput (Xbox-style) controllers are supported; other gamepads need an XInput wrapper. There is no mouse
+  support. Some keyboards cannot register many keys held at once, so when two players share a keyboard a held key
+  may occasionally be missed.
 - Only gameplay keys can be rebound; menu keys are fixed.
 - High-score entries have no player name.
 - Fonts come from Windows (Arial Black, Comic Sans MS, Consolas, Arial), with a fallback to the default typeface.

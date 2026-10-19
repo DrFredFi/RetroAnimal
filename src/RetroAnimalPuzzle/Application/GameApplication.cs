@@ -29,7 +29,7 @@ internal sealed class GameApplication : IDisposable
         var saves = new SaveService(dataDirectory);
         saves.Load();
 
-        _input = new InputManager(KeyboardBindings.FromSettings(settings.Settings.KeyBindings));
+        _input = new InputManager(KeyboardBindings.FromSettings(settings.Settings.KeyBindings), new XInputGamepads());
         _audio = AudioService.CreateOrSilent();
         _context = new GameContext(_input, _audio, settings, saves, SetFullscreen, () => _form.Close());
         _context.ApplySettings();
@@ -40,8 +40,10 @@ internal sealed class GameApplication : IDisposable
         _form.Surface.PaintSurface += OnPaintSurface;
         _form.Surface.KeyDown += OnKeyDown;
         _form.Surface.KeyUp += (_, e) => _input.OnKeyUp(e.KeyCode);
+        _form.Activated += (_, _) => _input.WindowActive = true;
         _form.Deactivate += (_, _) =>
         {
+            _input.WindowActive = false;
             _input.ReleaseAll();
             _context.Screens.NotifyFocusLost();
         };

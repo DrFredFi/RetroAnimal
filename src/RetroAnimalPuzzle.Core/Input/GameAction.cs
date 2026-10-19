@@ -19,4 +19,11 @@ public enum GameAction
     MenuLeft,
     MenuRight,
     ToggleDebugOverlay,
+
+    // Second set of gameplay keys, for the left player in a two-player match (see InputState.ForLeftPlayer).
+    LeftPlayerMoveLeft,
+    LeftPlayerMoveRight,
+    LeftPlayerSoftDrop,
+    LeftPlayerRotateClockwise,
+    LeftPlayerRotateCounterClockwise,
 }

@@ -86,6 +86,24 @@ internal static class Program
         Shot("07-highscores", new HighScoresScreen(context), 0.5);
         var pause = new InputState(ActionSet.Empty, ActionSet.Empty.With(GameAction.Pause), ActionSet.Empty);
         Shot("08-pause", new EndlessScreen(context), 3, t => t == 120 ? pause : InputState.None);
+        InputState BothPlay(int tick)
+        {
+            var right = RandomPlay(tick);
+            var left = (tick + 4) % 11 == 0 ? ActionSet.Empty.With(GameAction.LeftPlayerMoveLeft) : ActionSet.Empty;
+            return right with
+            {
+                Held = right.Held.With(GameAction.LeftPlayerSoftDrop),
+                Pressed = right.Pressed.Union((tick + 4) % 23 == 0 ? left.With(GameAction.LeftPlayerRotateClockwise) : left),
+            };
+        }
+
+        Shot("09-two-players", new VersusScreen(context, twoPlayers: true), 30, BothPlay);
+        Shot("10-two-players-ready", new VersusScreen(context, twoPlayers: true), 0.5);
+        Shot("11-controls", new ControlsScreen(context), 0.5);
+        Shot("11b-controller", new GamepadControlsScreen(context), 0.5);
+        var helpPage = new InputState(ActionSet.Empty, ActionSet.Empty.With(GameAction.MenuRight), ActionSet.Empty);
+        Shot("12-help-controls", new HelpScreen(context), 0.5, t => t is 20 or 24 ? helpPage : InputState.None);
+        Shot("13-help-versus", new HelpScreen(context), 0.5, t => t == 20 ? helpPage : InputState.None);
 
         try
         {
