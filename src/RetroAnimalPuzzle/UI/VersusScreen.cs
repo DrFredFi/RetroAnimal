@@ -8,19 +8,26 @@ using SkiaSharp;
 
 namespace RetroAnimalPuzzle.UI;
 
-/// <summary>Player (left) versus CPU (right), in the classic two-field arena with hearts for round wins.</summary>
+/// <summary>
+/// Versus in the classic two-field arena with hearts for round wins: the player (left) against the CPU (right),
+/// or, in a two-player match, two people on one keyboard (the left player uses the second key set).
+/// </summary>
 internal sealed class VersusScreen : PlayScreenBase
 {
     private static readonly SKColor Yellow = new(0xFF, 0xE4, 0x5C);
+    private static readonly SKColor Red = new(0xFF, 0x70, 0x70);
 
+    private readonly bool _twoPlayers;
     private readonly MenuList _winMenu = new("Next Stage", "Main Menu");
-    private readonly MenuList _loseMenu = new("Retry", "Main Menu");
+    private readonly MenuList _loseMenu;
     private VersusSession _session = null!;
     private VersusPhase _lastPhase;
     private bool _recorded;
 
-    public VersusScreen(GameContext context) : base(context)
+    public VersusScreen(GameContext context, bool twoPlayers = false) : base(context)
     {
+        _twoPlayers = twoPlayers;
+        _loseMenu = new MenuList(twoPlayers ? "Rematch" : "Retry", "Main Menu");
         RestartGame();
     }
 
@@ -28,11 +35,25 @@ internal sealed class VersusScreen : PlayScreenBase
 
     protected override PlayerBoard LeftBoard => _session.Player;
 
-    protected override PlayerBoard? RightBoard => _session.Cpu;
+    protected override PlayerBoard? RightBoard => _session.Opponent;
+
+    protected override bool RightIsHuman => _twoPlayers;
+
+    public override void OnEnter()
+    {
+        base.OnEnter();
+        Context.Input.TwoPlayerPads = _twoPlayers;
+    }
+
+    public override void Dispose()
+    {
+        Context.Input.TwoPlayerPads = false;
+        base.Dispose();
+    }
 
     protected override void RestartGame()
     {
-        _session = new VersusSession(Context.Rules, GameContext.NewSeed(), Context.Settings.CpuDifficulty);
+        _session = new VersusSession(Context.Rules, GameContext.NewSeed(), _twoPlayers ? null : Context.Settings.CpuDifficulty);
         _recorded = false;
         LeftEffects.Clear();
         RightEffects.Clear();
@@ -43,13 +64,21 @@ internal sealed class VersusScreen : PlayScreenBase
     protected override void UpdateGame(double deltaSeconds, in InputState input)
     {
         var before = _session.Phase;
-        _session.Update(deltaSeconds, before == VersusPhase.Playing ? input : InputState.None);
+        if (before == VersusPhase.Playing)
+        {
+            // Two players share the keyboard: the left board only sees the second key set.
+            _session.Update(deltaSeconds, _twoPlayers ? input.ForLeftPlayer() : input, input);
+        }
+        else
+        {
+            _session.Update(deltaSeconds, InputState.None);
+        }
 
         // Board events are only fresh when the boards were actually updated this tick.
         if (before == VersusPhase.Playing)
         {
             React(_session.Player, ArenaLayout.LeftField, LeftEffects, human: true);
-            React(_session.Cpu, ArenaLayout.RightField, RightEffects, human: false);
+            React(_session.Opponent, ArenaLayout.RightField, RightEffects, human: _twoPlayers);
         }
 
         if (_session.Phase != _lastPhase)
@@ -67,23 +96,28 @@ internal sealed class VersusScreen : PlayScreenBase
     protected override void RenderGame(SKCanvas canvas)
     {
         var arena = Context.Arena;
-        arena.DrawArena(canvas, new ArenaHud($"STAGE {_session.Stage}",
-            _session.PlayerTotalScore - LeftEffects.PendingPoints, _session.CpuScore - RightEffects.PendingPoints,
-            _session.Player.Score.FoodCleared - LeftEffects.PendingFood, _session.Cpu.Score.FoodCleared - RightEffects.PendingFood,
-            _session.PlayerWins, _session.CpuWins, _session.RoundElapsed, Versus: true,
+        arena.DrawArena(canvas, new ArenaHud(_twoPlayers ? "2 PLAYERS" : $"STAGE {_session.Stage}",
+            _session.PlayerTotalScore - LeftEffects.PendingPoints, _session.OpponentScore - RightEffects.PendingPoints,
+            _session.Player.Score.FoodCleared - LeftEffects.PendingFood, _session.Opponent.Score.FoodCleared - RightEffects.PendingFood,
+            _session.PlayerWins, _session.OpponentWins, _session.RoundElapsed, Versus: true,
             PulseLeft: LeftEffects.HeartPulse, PulseRight: RightEffects.HeartPulse, WinsToMatch: Context.Rules.RoundsToWinMatch));
         Context.Playfield.DrawNext(canvas, _session.Player, ArenaLayout.LeftNext, labelOnRight: true, LeftEffects.Visuals);
-        Context.Playfield.DrawNext(canvas, _session.Cpu, ArenaLayout.RightNext, labelOnRight: false, RightEffects.Visuals);
+        Context.Playfield.DrawNext(canvas, _session.Opponent, ArenaLayout.RightNext, labelOnRight: false, RightEffects.Visuals);
         Context.Playfield.DrawIncomingBar(canvas, ArenaLayout.LeftIncomingBar, LeftEffects.Visuals, outwardIsLeft: true, Time);
         Context.Playfield.DrawIncomingBar(canvas, ArenaLayout.RightIncomingBar, RightEffects.Visuals, outwardIsLeft: false, Time);
         Context.Mascot.Draw(canvas, ArenaRenderer.MascotArea, CurrentMood(), Time);
 
         DrawField(canvas, _session.Player, ArenaLayout.LeftField, LeftEffects);
-        DrawField(canvas, _session.Cpu, ArenaLayout.RightField, RightEffects, human: false);
+        DrawField(canvas, _session.Opponent, ArenaLayout.RightField, RightEffects, human: _twoPlayers);
 
-        Context.Ui.Text(canvas, "YOU", ArenaLayout.LeftField.MidX, ArenaLayout.LeftField.Bottom + 22, 14, Palette.TimerText, UiFont.Heading);
-        Context.Ui.Text(canvas, $"CPU ({Context.Settings.CpuDifficulty})", ArenaLayout.RightField.MidX,
-            ArenaLayout.RightField.Bottom + 22, 14, Palette.TimerText, UiFont.Heading);
+        var (leftName, rightName) = _twoPlayers
+            ? _session.Phase == VersusPhase.Ready
+                ? (KeysHint(leftPlayer: true), KeysHint(leftPlayer: false))
+                : ("PLAYER 1", "PLAYER 2")
+            : ("YOU", $"CPU ({Context.Settings.CpuDifficulty})");
+        float nameSize = _twoPlayers && _session.Phase == VersusPhase.Ready ? 12 : 14;
+        Context.Ui.Text(canvas, leftName, ArenaLayout.LeftField.MidX, ArenaLayout.LeftField.Bottom + 22, nameSize, Palette.TimerText, UiFont.Heading);
+        Context.Ui.Text(canvas, rightName, ArenaLayout.RightField.MidX, ArenaLayout.RightField.Bottom + 22, nameSize, Palette.TimerText, UiFont.Heading);
         DrawFlyingEffects(canvas);
 
         if (_session.Phase == VersusPhase.MatchOver)
@@ -92,11 +126,29 @@ internal sealed class VersusScreen : PlayScreenBase
         }
     }
 
+    /// <summary>Shown under each field while "READY?" is up, so both players know their keys.</summary>
+    private string KeysHint(bool leftPlayer)
+    {
+        var bindings = Context.Input.Bindings;
+        string Key(GameAction action) => KeyboardBindings.KeyName(bindings.PrimaryKey(action));
+        return leftPlayer
+            ? $"{Key(GameAction.LeftPlayerMoveLeft)} {Key(GameAction.LeftPlayerMoveRight)} move  " +
+              $"{Key(GameAction.LeftPlayerRotateClockwise)} turn  {Key(GameAction.LeftPlayerSoftDrop)} drop"
+            : $"{Key(GameAction.MoveLeft)} {Key(GameAction.MoveRight)} move  " +
+              $"{Key(GameAction.RotateClockwise)} turn  {Key(GameAction.SoftDrop)} drop";
+    }
+
     private MascotMood CurrentMood() => _session.Phase switch
     {
-        VersusPhase.MatchOver => _session.PlayerWonMatch ? MascotMood.Celebrate : MascotMood.Sad,
-        VersusPhase.RoundOver => _session.LastRound == RoundResult.PlayerWon ? MascotMood.Celebrate
-            : _session.LastRound == RoundResult.CpuWon ? MascotMood.Sad : MascotMood.Idle,
+        VersusPhase.MatchOver => _session.PlayerWonMatch || _twoPlayers ? MascotMood.Celebrate : MascotMood.Sad,
+        VersusPhase.RoundOver => _session.LastRound switch
+        {
+            RoundResult.PlayerWon => MascotMood.Celebrate,
+            RoundResult.OpponentWon => _twoPlayers ? MascotMood.Celebrate : MascotMood.Sad,
+            _ => MascotMood.Idle,
+        },
+        _ when _twoPlayers => MoodOr(SteadyMoodFor(_session.Player) == MascotMood.Worried
+            ? MascotMood.Worried : SteadyMoodFor(_session.Opponent)),
         _ => MoodOr(SteadyMoodFor(_session.Player)),
     };
 
@@ -119,20 +171,18 @@ internal sealed class VersusScreen : PlayScreenBase
                 audio.Play(Sound.Go);
                 break;
             case VersusPhase.RoundOver:
-                var win = new SKColor(0xFF, 0xE4, 0x5C);
-                var lose = new SKColor(0xFF, 0x70, 0x70);
                 float life = (float)VersusSession.RoundOverDuration;
                 switch (_session.LastRound)
                 {
                     case RoundResult.PlayerWon:
-                        LeftEffects.Animations.Announce("YOU WIN!", win, null, life);
-                        RightEffects.Animations.Announce("LOSE", lose, null, life);
+                        LeftEffects.Animations.Announce(_twoPlayers ? "WIN!" : "YOU WIN!", Yellow, null, life);
+                        RightEffects.Animations.Announce("LOSE", Red, null, life);
                         audio.Play(Sound.RoundWin);
                         break;
-                    case RoundResult.CpuWon:
-                        LeftEffects.Animations.Announce("YOU LOSE", lose, null, life);
-                        RightEffects.Animations.Announce("WIN!", win, null, life);
-                        audio.Play(Sound.RoundLose);
+                    case RoundResult.OpponentWon:
+                        LeftEffects.Animations.Announce(_twoPlayers ? "LOSE" : "YOU LOSE", Red, null, life);
+                        RightEffects.Animations.Announce("WIN!", Yellow, null, life);
+                        audio.Play(_twoPlayers ? Sound.RoundWin : Sound.RoundLose);
                         break;
                     default:
                         LeftEffects.Animations.Announce("DRAW", SKColors.White, null, life);
@@ -145,13 +195,17 @@ internal sealed class VersusScreen : PlayScreenBase
             case VersusPhase.MatchOver:
                 _winMenu.Selected = 0;
                 _loseMenu.Selected = 0;
-                if (_session.PlayerWonMatch)
+                if (_session.PlayerWonMatch || _twoPlayers)
                 {
                     audio.Play(Sound.LevelUp);
                 }
                 else
                 {
                     audio.Play(Sound.GameOver);
+                }
+
+                if (!_session.PlayerWonMatch)
+                {
                     Record();
                 }
 
@@ -161,7 +215,8 @@ internal sealed class VersusScreen : PlayScreenBase
 
     private void UpdateMatchOver(in InputState input)
     {
-        if (_session.PlayerWonMatch)
+        // Against the CPU a won match goes on to the next stage; a two-player match just offers a rematch.
+        if (_session.PlayerWonMatch && !_twoPlayers)
         {
             switch (_winMenu.Update(input, Context.Audio))
             {
@@ -196,9 +251,10 @@ internal sealed class VersusScreen : PlayScreenBase
         }
     }
 
+    /// <summary>Saves the high score of a match against the CPU; two-player matches are not ranked.</summary>
     private void Record()
     {
-        if (_recorded)
+        if (_recorded || _twoPlayers)
         {
             return;
         }
@@ -213,7 +269,16 @@ internal sealed class VersusScreen : PlayScreenBase
         var ui = Context.Ui;
         ui.Dim(canvas, 120);
         ui.Panel(canvas, new SKRect(200, 170, 600, 450));
-        if (_session.PlayerWonMatch)
+        if (_twoPlayers)
+        {
+            string winner = _session.PlayerWonMatch ? "PLAYER 1 WINS!" : "PLAYER 2 WINS!";
+            ui.OutlinedText(canvas, winner, 400, 232, 36, Yellow, Palette.Outline, UiFont.Heading, 4);
+            ui.OutlinedText(canvas, $"{_session.PlayerTotalScore}  -  {_session.OpponentScore}", 400, 284, 24, SKColors.White,
+                Palette.Outline, UiFont.Digits);
+            ui.Text(canvas, $"Rounds  {_session.PlayerWins} - {_session.OpponentWins}", 400, 322, 17, Palette.TimerText, UiFont.Playful);
+            _loseMenu.Draw(canvas, ui, 400, 372, 42, Time, 24);
+        }
+        else if (_session.PlayerWonMatch)
         {
             ui.OutlinedText(canvas, "STAGE CLEAR!", 400, 232, 40, Yellow, Palette.Outline, UiFont.Heading, 4);
             ui.OutlinedText(canvas, $"SCORE  {_session.PlayerTotalScore}", 400, 284, 24, SKColors.White, Palette.Outline, UiFont.Digits);
@@ -222,7 +287,7 @@ internal sealed class VersusScreen : PlayScreenBase
         }
         else
         {
-            ui.OutlinedText(canvas, "GAME OVER", 400, 232, 40, new SKColor(0xFF, 0x70, 0x70), Palette.Outline, UiFont.Heading, 4);
+            ui.OutlinedText(canvas, "GAME OVER", 400, 232, 40, Red, Palette.Outline, UiFont.Heading, 4);
             ui.OutlinedText(canvas, $"SCORE  {_session.PlayerTotalScore}", 400, 284, 24, SKColors.White, Palette.Outline, UiFont.Digits);
             ui.Text(canvas, $"Reached stage {_session.Stage}", 400, 322, 17, Palette.TimerText, UiFont.Playful);
             _loseMenu.Draw(canvas, ui, 400, 372, 42, Time, 24);

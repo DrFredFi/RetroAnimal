@@ -3,6 +3,15 @@ namespace RetroAnimalPuzzle.Input;
 /// <summary>Allocation-free set of <see cref="GameAction"/> values backed by a bit mask.</summary>
 public readonly record struct ActionSet(ulong Bits)
 {
+    private static readonly (GameAction From, GameAction To)[] LeftPlayerMap =
+    [
+        (GameAction.LeftPlayerMoveLeft, GameAction.MoveLeft),
+        (GameAction.LeftPlayerMoveRight, GameAction.MoveRight),
+        (GameAction.LeftPlayerSoftDrop, GameAction.SoftDrop),
+        (GameAction.LeftPlayerRotateClockwise, GameAction.RotateClockwise),
+        (GameAction.LeftPlayerRotateCounterClockwise, GameAction.RotateCounterClockwise),
+    ];
+
     public static ActionSet Empty => default;
 
     public bool Contains(GameAction action) => (Bits & Mask(action)) != 0;
@@ -12,6 +21,23 @@ public readonly record struct ActionSet(ulong Bits)
     public ActionSet Union(ActionSet other) => new(Bits | other.Bits);
 
     public bool IsEmpty => Bits == 0;
+
+    public ActionSet Except(ActionSet other) => new(Bits & ~other.Bits);
+
+    /// <summary>Only the left player's actions, renamed to the ordinary gameplay actions they stand for.</summary>
+    public ActionSet ForLeftPlayer()
+    {
+        var set = Empty;
+        foreach (var (from, to) in LeftPlayerMap)
+        {
+            if (Contains(from))
+            {
+                set = set.With(to);
+            }
+        }
+
+        return set;
+    }
 
     private static ulong Mask(GameAction action) => 1UL << (int)action;
 }
@@ -29,4 +55,10 @@ public readonly record struct InputState(ActionSet Held, ActionSet Pressed, Acti
     public bool WasPressed(GameAction action) => Pressed.Contains(action);
 
     public bool WasReleased(GameAction action) => Released.Contains(action);
+
+    /// <summary>
+    /// The input as the left player of a two-player match sees it: their own keys drive an ordinary board,
+    /// and every other key (the right player's, menus) is dropped.
+    /// </summary>
+    public InputState ForLeftPlayer() => new(Held.ForLeftPlayer(), Pressed.ForLeftPlayer(), Released.ForLeftPlayer());
 }

@@ -18,25 +18,26 @@ public enum RoundResult
 {
     None,
     PlayerWon,
-    CpuWon,
+    OpponentWon,
     Draw,
 }
 
 /// <summary>
-/// Player versus CPU match: two boards side by side, food eaten turns into garbage dropped on the opponent
-/// (after cancelling one's own pending garbage), rounds are won by topping the opponent out, and the first
-/// to <see cref="GameRules.RoundsToWinMatch"/> wins takes the stage. Winning a stage advances to a faster,
-/// smarter opponent.
+/// Versus match against the CPU or a second human: two boards side by side, food eaten turns into garbage
+/// dropped on the opponent (after cancelling one's own pending garbage), rounds are won by topping the opponent
+/// out, and the first to <see cref="GameRules.RoundsToWinMatch"/> wins takes the stage. Winning a stage advances
+/// to a faster, smarter opponent. In a two-player match there is no CPU: the opponent board is driven by the second player's input.
 /// </summary>
 public sealed class VersusSession
 {
     public const double ReadyDuration = 1.6;
     public const double RoundOverDuration = 2.6;
 
-    private readonly CpuDifficulty _difficulty;
+    private readonly CpuDifficulty? _difficulty;
     private readonly Random _seeds;
 
-    public VersusSession(GameRules rules, int seed, CpuDifficulty difficulty)
+    /// <param name="difficulty">The CPU opponent's level, or <c>null</c> for a two-player match.</param>
+    public VersusSession(GameRules rules, int seed, CpuDifficulty? difficulty)
     {
         Rules = rules;
         _difficulty = difficulty;
@@ -49,9 +50,13 @@ public sealed class VersusSession
 
     public PlayerBoard Player { get; private set; } = null!;
 
-    public PlayerBoard Cpu { get; private set; } = null!;
+    /// <summary>The right-hand board: the CPU, or the second player.</summary>
+    public PlayerBoard Opponent { get; private set; } = null!;
 
-    public CpuController CpuBrain { get; private set; } = null!;
+    /// <summary>The CPU driving <see cref="Opponent"/>; <c>null</c> in a two-player match.</summary>
+    public CpuController? CpuBrain { get; private set; }
+
+    public bool IsTwoPlayer => _difficulty is null;
 
     public int Stage { get; private set; }
 
@@ -59,7 +64,7 @@ public sealed class VersusSession
 
     public int PlayerWins { get; private set; }
 
-    public int CpuWins { get; private set; }
+    public int OpponentWins { get; private set; }
 
     public VersusPhase Phase { get; private set; }
 
@@ -74,13 +79,14 @@ public sealed class VersusSession
 
     public int PlayerTotalScore => PlayerScoreCarry + Player.Score.Score;
 
-    public int CpuScore => Cpu.Score.Score;
+    public int OpponentScore => Opponent.Score.Score;
 
     public bool PlayerWonMatch => Phase == VersusPhase.MatchOver && PlayerWins >= Rules.RoundsToWinMatch;
 
     public int SpeedLevel => Stage + (int)(RoundElapsed.TotalSeconds / Rules.VersusSecondsPerSpeedLevel);
 
-    public void Update(double deltaSeconds, in InputState playerInput)
+    /// <param name="opponentInput">The second player's input; ignored when the CPU plays.</param>
+    public void Update(double deltaSeconds, in InputState playerInput, in InputState opponentInput = default)
     {
         PhaseElapsed += deltaSeconds;
         switch (Phase)
@@ -89,10 +95,10 @@ public sealed class VersusSession
                 EnterPhase(VersusPhase.Playing);
                 break;
             case VersusPhase.Playing:
-                UpdatePlaying(deltaSeconds, playerInput);
+                UpdatePlaying(deltaSeconds, playerInput, opponentInput);
                 break;
             case VersusPhase.RoundOver when PhaseElapsed >= RoundOverDuration:
-                if (PlayerWins >= Rules.RoundsToWinMatch || CpuWins >= Rules.RoundsToWinMatch)
+                if (PlayerWins >= Rules.RoundsToWinMatch || OpponentWins >= Rules.RoundsToWinMatch)
                 {
                     EnterPhase(VersusPhase.MatchOver);
                 }
@@ -115,41 +121,41 @@ public sealed class VersusSession
 
         Stage++;
         PlayerWins = 0;
-        CpuWins = 0;
+        OpponentWins = 0;
         Round = 0;
         StartRound();
     }
 
-    private void UpdatePlaying(double deltaSeconds, in InputState playerInput)
+    private void UpdatePlaying(double deltaSeconds, in InputState playerInput, in InputState opponentInput)
     {
         RoundElapsed += TimeSpan.FromSeconds(deltaSeconds);
         int speed = SpeedLevel;
         Player.SpeedLevel = speed;
-        Cpu.SpeedLevel = speed;
+        Opponent.SpeedLevel = speed;
 
-        var cpuInput = CpuBrain.Think(Cpu, deltaSeconds);
+        var secondInput = CpuBrain?.Think(Opponent, deltaSeconds) ?? opponentInput;
         Player.Update(deltaSeconds, playerInput);
-        Cpu.Update(deltaSeconds, cpuInput);
+        Opponent.Update(deltaSeconds, secondInput);
 
-        Cpu.AddIncomingGarbage(Player.CancelIncoming(Player.TakeOutgoingGarbage()));
-        Player.AddIncomingGarbage(Cpu.CancelIncoming(Cpu.TakeOutgoingGarbage()));
+        Opponent.AddIncomingGarbage(Player.CancelIncoming(Player.TakeOutgoingGarbage()));
+        Player.AddIncomingGarbage(Opponent.CancelIncoming(Opponent.TakeOutgoingGarbage()));
 
         bool playerOut = Player.IsToppedOut;
-        bool cpuOut = Cpu.IsToppedOut;
-        if (!playerOut && !cpuOut)
+        bool opponentOut = Opponent.IsToppedOut;
+        if (!playerOut && !opponentOut)
         {
             return;
         }
 
-        LastRound = (playerOut, cpuOut) switch
+        LastRound = (playerOut, opponentOut) switch
         {
             (true, true) => RoundResult.Draw,
-            (true, false) => RoundResult.CpuWon,
+            (true, false) => RoundResult.OpponentWon,
             _ => RoundResult.PlayerWon,
         };
 
         if (LastRound == RoundResult.PlayerWon) PlayerWins++;
-        if (LastRound == RoundResult.CpuWon) CpuWins++;
+        if (LastRound == RoundResult.OpponentWon) OpponentWins++;
         EnterPhase(VersusPhase.RoundOver);
     }
 
@@ -164,8 +170,9 @@ public sealed class VersusSession
         RoundElapsed = TimeSpan.Zero;
         LastRound = RoundResult.None;
         Player = new PlayerBoard(Rules, _seeds.Next());
-        Cpu = new PlayerBoard(Rules, _seeds.Next());
-        CpuBrain = new CpuController(Rules, CpuSkill.For(_difficulty, Stage), _seeds.Next());
+        Opponent = new PlayerBoard(Rules, _seeds.Next());
+        int cpuSeed = _seeds.Next();
+        CpuBrain = _difficulty is { } level ? new CpuController(Rules, CpuSkill.For(level, Stage), cpuSeed) : null;
         EnterPhase(VersusPhase.Ready);
     }
 

@@ -9,10 +9,10 @@ namespace RetroAnimalPuzzle.UI;
 
 internal sealed class MainMenuScreen : IScreen
 {
-    private const int StartGame = 0, Versus = 1, HowToPlay = 2, Options = 3, HighScores = 4, Exit = 5;
+    private const int StartGame = 0, Versus = 1, TwoPlayers = 2, HowToPlay = 3, Options = 4, HighScores = 5, Exit = 6;
 
     private readonly GameContext _context;
-    private readonly MenuList _menu = new("Start Game", "Versus CPU", "How to Play", "Options", "High Scores", "Exit");
+    private readonly MenuList _menu = new("Start Game", "Versus CPU", "2 Players", "How to Play", "Options", "High Scores", "Exit");
     private double _time;
 
     public MainMenuScreen(GameContext context)
@@ -46,6 +46,9 @@ internal sealed class MainMenuScreen : IScreen
             case Versus:
                 _context.Screens.Replace(new VersusScreen(_context));
                 break;
+            case TwoPlayers:
+                _context.Screens.Replace(new VersusScreen(_context, twoPlayers: true));
+                break;
             case HowToPlay:
                 _context.Screens.Push(new HelpScreen(_context));
                 break;
@@ -68,7 +71,7 @@ internal sealed class MainMenuScreen : IScreen
         TitleArt.DrawLogo(canvas, ui, 400, 150, (float)_time, 0.75f);
 
         ui.Panel(canvas, new SKRect(220, 175, 580, 520));
-        _menu.Draw(canvas, ui, 400, 232, 50, _time);
+        _menu.Draw(canvas, ui, 400, 228, 46, _time);
 
         var saves = _context.Saves.Data;
         ui.Text(canvas, $"Best (Endless): {saves.Best(GameMode.Endless)}    Best (Versus): {saves.Best(GameMode.Versus)}",

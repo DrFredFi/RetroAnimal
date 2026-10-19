@@ -36,7 +36,7 @@ internal abstract class PlayScreenBase : IScreen, IDisposable
 
     protected FieldEffects RightEffects { get; } = new(HeartTarget(ArenaLayout.RightHeart));
 
-    /// <summary>The board shown in the left field (the human player).</summary>
+    /// <summary>The board shown in the left field (always a human player).</summary>
     protected abstract PlayerBoard LeftBoard { get; }
 
     /// <summary>The board shown in the right field, if any.</summary>
@@ -45,6 +45,9 @@ internal abstract class PlayScreenBase : IScreen, IDisposable
     protected double Time { get; private set; }
 
     protected bool Paused { get; private set; }
+
+    /// <summary>Whether a person plays the right field (full-volume sounds, ghost piece) rather than the CPU.</summary>
+    protected virtual bool RightIsHuman => false;
 
     /// <summary>Whether the pause menu may open right now (not during end-of-game panels).</summary>
     protected abstract bool CanPause { get; }
@@ -88,7 +91,7 @@ internal abstract class PlayScreenBase : IScreen, IDisposable
 
         UpdateGame(deltaSeconds, input);
         UpdateEffects(LeftEffects, LeftBoard, ArenaLayout.LeftField, deltaSeconds, human: true);
-        UpdateEffects(RightEffects, RightBoard, ArenaLayout.RightField, deltaSeconds, human: false);
+        UpdateEffects(RightEffects, RightBoard, ArenaLayout.RightField, deltaSeconds, RightIsHuman);
         _tempMoodTimer -= deltaSeconds;
     }
 

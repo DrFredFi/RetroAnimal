@@ -51,4 +51,20 @@ public class InputStateTests
         Assert.True(state.WasReleased(GameAction.MoveRight));
         Assert.False(state.WasPressed(GameAction.SoftDrop));
     }
+
+    [Fact]
+    public void ForLeftPlayer_MapsTheSecondKeySet_AndDropsEverythingElse()
+    {
+        var state = new InputState(
+            Held: ActionSet.Empty.With(GameAction.LeftPlayerSoftDrop).With(GameAction.SoftDrop),
+            Pressed: ActionSet.Empty.With(GameAction.LeftPlayerMoveLeft).With(GameAction.LeftPlayerRotateCounterClockwise)
+                .With(GameAction.MoveRight),
+            Released: ActionSet.Empty.With(GameAction.LeftPlayerRotateClockwise).With(GameAction.LeftPlayerMoveRight));
+
+        var left = state.ForLeftPlayer();
+
+        Assert.Equal(ActionSet.Empty.With(GameAction.SoftDrop), left.Held);
+        Assert.Equal(ActionSet.Empty.With(GameAction.MoveLeft).With(GameAction.RotateCounterClockwise), left.Pressed);
+        Assert.Equal(ActionSet.Empty.With(GameAction.RotateClockwise).With(GameAction.MoveRight), left.Released);
+    }
 }

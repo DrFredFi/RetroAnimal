@@ -33,6 +33,15 @@ public sealed class SettingsData
     /// <summary>Gameplay action name → key name. Empty means defaults; interpreted by the desktop host.</summary>
     public Dictionary<string, string> KeyBindings { get; set; } = [];
 
+    /// <summary>Whether Xbox-style controllers (XInput) are read at all.</summary>
+    public bool GamepadEnabled { get; set; } = true;
+
+    /// <summary>Gameplay action name → controller button name. Empty means defaults (D-pad and face buttons).</summary>
+    public Dictionary<string, string> GamepadBindings { get; set; } = [];
+
+    /// <summary>In a two-player match, whether the first connected controller plays the left field (else the right).</summary>
+    public bool FirstGamepadPlaysLeft { get; set; } = true;
+
     public const int MaxVolume = 10;
 
     public SettingsData Sanitize()
@@ -43,6 +52,7 @@ public sealed class SettingsData
         if (!Enum.IsDefined(Animations)) Animations = AnimationIntensity.Full;
         if (!Enum.IsDefined(CpuDifficulty)) CpuDifficulty = CpuDifficulty.Normal;
         KeyBindings ??= [];
+        GamepadBindings ??= [];
         return this;
     }
 }

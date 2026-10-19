@@ -76,6 +76,9 @@ internal sealed class GameContext : IDisposable
         Audio.SetVolumes(s.MasterVolume / (float)SettingsData.MaxVolume, s.SfxVolume / (float)SettingsData.MaxVolume,
             s.MusicVolume / (float)SettingsData.MaxVolume);
         Input.Bindings = KeyboardBindings.FromSettings(s.KeyBindings);
+        Input.PadBindings = GamepadBindings.FromSettings(s.GamepadBindings);
+        Input.GamepadsEnabled = s.GamepadEnabled;
+        Input.FirstPadPlaysLeft = s.FirstGamepadPlaysLeft;
         _setFullscreen(s.Fullscreen);
     }
 

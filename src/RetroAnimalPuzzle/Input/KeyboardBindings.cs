@@ -6,6 +6,8 @@ namespace RetroAnimalPuzzle.Input;
 /// Maps physical keys to logical actions. One key may trigger several actions (e.g. Up rotates in game and
 /// navigates menus). Menu keys (arrows, Enter, Escape) are fixed; gameplay actions listed in
 /// <see cref="Rebindable"/> can be reassigned and are persisted in <see cref="SettingsData.KeyBindings"/>.
+/// There are two gameplay key sets: the main one (arrows), used alone and by the right player in a two-player
+/// match, and the left player's (W A S D), used only in a two-player match.
 /// </summary>
 internal sealed class KeyboardBindings
 {
@@ -17,6 +19,11 @@ internal sealed class KeyboardBindings
         GameAction.RotateClockwise,
         GameAction.RotateCounterClockwise,
         GameAction.Pause,
+        GameAction.LeftPlayerMoveLeft,
+        GameAction.LeftPlayerMoveRight,
+        GameAction.LeftPlayerSoftDrop,
+        GameAction.LeftPlayerRotateClockwise,
+        GameAction.LeftPlayerRotateCounterClockwise,
     ];
 
     private static readonly Dictionary<GameAction, Keys> DefaultKeys = new()
@@ -27,6 +34,11 @@ internal sealed class KeyboardBindings
         [GameAction.RotateClockwise] = Keys.Up,
         [GameAction.RotateCounterClockwise] = Keys.Z,
         [GameAction.Pause] = Keys.P,
+        [GameAction.LeftPlayerMoveLeft] = Keys.A,
+        [GameAction.LeftPlayerMoveRight] = Keys.D,
+        [GameAction.LeftPlayerSoftDrop] = Keys.S,
+        [GameAction.LeftPlayerRotateClockwise] = Keys.W,
+        [GameAction.LeftPlayerRotateCounterClockwise] = Keys.Q,
     };
 
     private readonly Dictionary<Keys, List<GameAction>> _map = [];
@@ -51,18 +63,34 @@ internal sealed class KeyboardBindings
         bindings.Add(Keys.F1, GameAction.Help);
         bindings.Add(Keys.F3, GameAction.ToggleDebugOverlay);
 
+        // Saved keys first, then defaults for the rest. A default already taken by a saved key stays unbound
+        // (e.g. settings from before the left player's keys existed, where A might already move left).
         bool customised = false;
+        var keys = new Dictionary<GameAction, Keys>();
         foreach (var action in Rebindable)
         {
-            var key = DefaultKeys[action];
             if (saved.TryGetValue(action.ToString(), out var name) && Enum.TryParse<Keys>(name, out var parsed) && IsBindable(parsed))
             {
-                key = parsed;
+                keys[action] = parsed;
                 customised = true;
             }
+        }
 
-            bindings._primary[action] = key;
-            bindings.Add(key, action);
+        foreach (var action in Rebindable)
+        {
+            if (!keys.ContainsKey(action))
+            {
+                keys[action] = keys.ContainsValue(DefaultKeys[action]) ? Keys.None : DefaultKeys[action];
+            }
+        }
+
+        foreach (var action in Rebindable)
+        {
+            bindings._primary[action] = keys[action];
+            if (keys[action] != Keys.None)
+            {
+                bindings.Add(keys[action], action);
+            }
         }
 
         if (!customised)
@@ -81,6 +109,7 @@ internal sealed class KeyboardBindings
 
     public static string KeyName(Keys key) => key switch
     {
+        Keys.None => "---",
         Keys.Space => "Space",
         Keys.Left => "Left",
         Keys.Right => "Right",

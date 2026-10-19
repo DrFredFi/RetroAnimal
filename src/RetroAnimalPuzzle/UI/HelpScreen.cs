@@ -137,39 +137,60 @@ internal sealed class HelpScreen : IScreen
 
         art.Draw(canvas, Block.Of(FoodType.Bone), 84, y + 4, 40);
         ui.Paragraph(canvas,
-            "VERSUS: everything you eat is sent to the CPU as extra food that drops onto its field (chains send much more). " +
+            "VERSUS (CPU or 2 players): everything you eat drops onto the opponent's field as extra food (chains send much more). " +
             "The heart on the bar above your field shows food on its way: the further it travels, the more is coming. " +
-            "What you eat cancels it first. Top out the CPU to win the round; two rounds win the stage.",
+            "What you eat cancels it first. Top out the opponent to win the round; two rounds win the stage.",
             136, y + 22, 584, 17, SKColors.White);
     }
 
     private void ControlsPage(SKCanvas canvas, UiRenderer ui)
     {
         var bindings = _context.Input.Bindings;
-        (string, GameAction?)[] rows =
+        string Key(GameAction action) => KeyboardBindings.KeyName(bindings.PrimaryKey(action));
+
+        // Key columns: the main keys, the left player's keys in a two-player match, and the controller.
+        (string, GameAction?, GameAction?)[] rows =
         [
-            ("Move left", GameAction.MoveLeft),
-            ("Move right", GameAction.MoveRight),
-            ("Rotate clockwise", GameAction.RotateClockwise),
-            ("Rotate counter-clockwise", GameAction.RotateCounterClockwise),
-            ("Drop faster (hold: speeds up)", GameAction.SoftDrop),
-            ("Pause", GameAction.Pause),
-            ("Help", null),
-            ("Fullscreen", null),
+            ("Move left", GameAction.MoveLeft, GameAction.LeftPlayerMoveLeft),
+            ("Move right", GameAction.MoveRight, GameAction.LeftPlayerMoveRight),
+            ("Rotate clockwise", GameAction.RotateClockwise, GameAction.LeftPlayerRotateClockwise),
+            ("Rotate counter-clockwise", GameAction.RotateCounterClockwise, GameAction.LeftPlayerRotateCounterClockwise),
+            ("Drop faster (hold)", GameAction.SoftDrop, GameAction.LeftPlayerSoftDrop),
+            ("Pause", GameAction.Pause, null),
+            ("Help", null, null),
+            ("Fullscreen", null, null),
         ];
         string[] fixedKeys = ["F1", "F11 / Alt+Enter"];
-        float y = 140;
+        const float mainColumn = 430, leftColumn = 555, padColumn = 670;
+        var pad = _context.Input.PadBindings;
+        ui.Text(canvas, "1 player / right", mainColumn, 128, 14, Palette.TimerText, UiFont.Heading);
+        ui.Text(canvas, "left (2 players)", leftColumn, 128, 14, Palette.TimerText, UiFont.Heading);
+        ui.Text(canvas, "controller", padColumn, 128, 14, Palette.TimerText, UiFont.Heading);
+        float y = 166;
         int fixedIndex = 0;
-        foreach (var (label, action) in rows)
+        foreach (var (label, action, leftAction) in rows)
         {
-            string key = action is { } a ? KeyboardBindings.KeyName(bindings.PrimaryKey(a)) : fixedKeys[fixedIndex++];
+            string key = action is { } a ? Key(a) : fixedKeys[fixedIndex++];
             if (action == GameAction.Pause) key += " / Esc";
             if (action == GameAction.RotateClockwise && bindings.ActionsFor(Keys.X).Contains(GameAction.RotateClockwise)) key += " / X";
-            ui.Text(canvas, label, 160, y, 20, SKColors.White, UiFont.Playful, SKTextAlign.Left);
-            ui.OutlinedText(canvas, key, 640, y, 20, Yellow, Palette.Outline, UiFont.Heading, 2, SKTextAlign.Right);
+            ui.Text(canvas, label, 70, y, 19, SKColors.White, UiFont.Playful, SKTextAlign.Left);
+            ui.OutlinedText(canvas, key, mainColumn, y, 20, Yellow, Palette.Outline, UiFont.Heading, 2);
+            if (leftAction is { } l)
+            {
+                ui.OutlinedText(canvas, Key(l), leftColumn, y, 20, Yellow, Palette.Outline, UiFont.Heading, 2);
+            }
+
+            if (action is { } gameplay)
+            {
+                string button = GamepadBindings.ButtonName(pad.PrimaryButton(gameplay));
+                if (gameplay == GameAction.Pause) button += " / View";
+                ui.OutlinedText(canvas, button, padColumn, y, 17, Yellow, Palette.Outline, UiFont.Heading, 2);
+            }
+
             y += 38;
         }
 
-        ui.Text(canvas, "Gameplay keys can be changed in Options > Controls.", 400, y + 16, 16, Palette.TimerText, UiFont.Body);
+        ui.Text(canvas, "Keys and buttons can be changed in Options > Keyboard and Options > Controller.", 400, y + 10, 16,
+            Palette.TimerText, UiFont.Body);
     }
 }
