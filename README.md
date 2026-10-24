@@ -117,8 +117,11 @@ The game needs no asset files, but it picks up replacements if you add them next
 - `Assets/Sprites/<name>.png` replaces a block drawing. Names: `monkey`, `rabbit`, `panda`, `dog`, `cat`
   (plus `<animal>_eat` for the eating pose), `banana`, `carrot`, `bamboo`, `bone`, `fish`, `coin`.
 - `Assets/Audio/<sound>.wav` replaces a sound effect (`eat.wav`, `chain.wav`, `coin.wav`... one per value of the
-  `Sound` enum, lower-case), and `music_menu.wav` / `music_game.wav` replace the music. Any sample rate and
-  mono/stereo are accepted.
+  `Sound` enum, lower-case), and `music_menu.wav` / `music_game.wav` replace the music (looped). Each file may
+  also be an `.mp3` (the `.wav` wins if both exist). Any sample rate and mono/stereo are accepted.
+
+When building from source, put them in a `LocalAssets/` folder at the repo root with the same layout (e.g.
+`LocalAssets/Audio/music_game.mp3`): the folder is git-ignored and the build copies it to `Assets/` in the output.
 
 Only use assets you own or that are properly licensed.
 

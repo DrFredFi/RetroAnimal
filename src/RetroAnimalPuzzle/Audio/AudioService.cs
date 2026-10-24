@@ -6,8 +6,8 @@ namespace RetroAnimalPuzzle.Audio;
 /// <summary>
 /// NAudio (WinMM) implementation. A single mixer runs on NAudio's playback thread; effects are added as
 /// short in-memory voices and music as a looping voice, so <see cref="Play"/> returns immediately.
-/// Sounds are synthesized at start-up; a WAV in <c>Assets/Audio</c> named after a <see cref="Sound"/>
-/// (e.g. <c>eat.wav</c>) or <c>music_game.wav</c> / <c>music_menu.wav</c> replaces the generated one.
+/// Sounds are synthesized at start-up; a WAV or MP3 in <c>Assets/Audio</c> named after a <see cref="Sound"/>
+/// (e.g. <c>eat.wav</c>) or <c>music_game</c> / <c>music_menu</c> replaces the generated one.
 /// </summary>
 internal sealed class AudioService : IAudioService
 {
@@ -37,7 +37,7 @@ internal sealed class AudioService : IAudioService
 
         foreach (var sound in Enum.GetValues<Sound>())
         {
-            _sounds[sound] = LoadWav(Path.Combine(assetDirectory, sound.ToString().ToLowerInvariant() + ".wav")) ?? Synth.Render(sound);
+            _sounds[sound] = LoadClip(Path.Combine(assetDirectory, sound.ToString().ToLowerInvariant())) ?? Synth.Render(sound);
         }
 
         _output = new WaveOut { BufferMilliseconds = 30, NumberOfBuffers = 3 };
@@ -49,7 +49,7 @@ internal sealed class AudioService : IAudioService
         {
             foreach (var track in new[] { MusicTrack.Menu, MusicTrack.Game })
             {
-                var samples = LoadWav(Path.Combine(assetDirectory, $"music_{track.ToString().ToLowerInvariant()}.wav"))
+                var samples = LoadClip(Path.Combine(assetDirectory, $"music_{track.ToString().ToLowerInvariant()}"))
                     ?? Synth.RenderMusic(track);
                 lock (_musicLock)
                 {
@@ -117,16 +117,21 @@ internal sealed class AudioService : IAudioService
         _output.Dispose();
     }
 
-    private static float[]? LoadWav(string path)
+    /// <summary>Decodes <c>basePath.wav</c>, or else <c>basePath.mp3</c>, to mono samples at <see cref="Synth.SampleRate"/>.</summary>
+    private static float[]? LoadClip(string basePath)
     {
-        if (!File.Exists(path))
+        string wav = basePath + ".wav";
+        string mp3 = basePath + ".mp3";
+        if (!File.Exists(wav) && !File.Exists(mp3))
         {
             return null;
         }
 
         try
         {
-            using var reader = new WaveFileReader(path);
+            using WaveStream reader = File.Exists(wav)
+                ? new WaveFileReader(wav)
+                : new Mp3FileReaderBase(mp3, format => new AcmMp3FrameDecompressor(format));
             ISampleProvider provider = reader.ToSampleProvider();
             if (provider.WaveFormat.Channels == 2)
             {
@@ -148,7 +153,7 @@ internal sealed class AudioService : IAudioService
 
             return samples.ToArray();
         }
-        catch (Exception e) when (e is IOException or FormatException or InvalidOperationException or ArgumentException)
+        catch (Exception e) when (e is IOException or FormatException or InvalidOperationException or ArgumentException or NAudio.MmException)
         {
             return null;
         }
